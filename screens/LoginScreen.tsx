@@ -1,8 +1,23 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text } from 'react-native';
 import tw from 'twrnc';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp } from '@react-navigation/native';
 
-export default function LoginScreen({ navigation }) {
+type RootStackParamList = {
+  Login: undefined;
+  Home: { username: string };
+};
+
+type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
+type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
+
+type Props = {
+  navigation: LoginScreenNavigationProp;
+  route: LoginScreenRouteProp;
+};
+
+export default function LoginScreen({ navigation }: Props) {
   const [username, setUsername] = useState('');
 
   const handleLogin = () => {

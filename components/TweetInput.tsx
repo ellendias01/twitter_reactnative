@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text } from 'react-native';
 import tw from 'twrnc';
 
-export default function TweetInput({ addTweet }) {
+type TweetInputProps = {
+  addTweet: (text: string) => void;
+};
+
+export default function TweetInput({ addTweet }: TweetInputProps) {
   const [text, setText] = useState('');
 
   const handlePost = () => {
