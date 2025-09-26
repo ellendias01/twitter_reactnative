@@ -47,6 +47,7 @@ export default function HomeScreen({ route, navigation }: Props) {
 
   // Registrar visualização da tela
   useEffect(() => {
+    
     AnalyticsService.logScreenView('HomeScreen', variant);
   }, [variant]);
 
@@ -122,3 +123,4 @@ const loadMoreTweets = () => {
     </View>
   );
 }
+

@@ -1,5 +1,7 @@
 // App.tsx
 import React from 'react';
+import perf from '@react-native-firebase/perf';
+import { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from './screens/LoginScreen';
@@ -21,6 +23,16 @@ type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+
+    useEffect(() => {
+    const trace = perf().newTrace('app_start');
+    trace.start();
+
+    setTimeout(() => {
+      trace.stop();
+    }, 3000);
+  }, []);
+  
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Login">
