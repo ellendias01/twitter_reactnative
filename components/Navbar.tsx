@@ -1,8 +1,9 @@
 // components/Navbar.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import tw from 'twrnc';
 import { FontAwesome } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ABTestingService from '../services/ABTestingService';
 import AnalyticsService from '../services/AnalyticsService';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,6 +23,7 @@ type NavbarProps = {
 
 export default function Navbar({ navigation, username }: NavbarProps) {
   const variant = ABTestingService.getUserVariant();
+  const insets = useSafeAreaInsets();
 
   const handleNavigation = (screen: keyof RootStackParamList) => {
     AnalyticsService.logButtonClick(`Nav_${screen}`, 'Navbar');
@@ -53,40 +55,54 @@ export default function Navbar({ navigation, username }: NavbarProps) {
     navItems.push({ screen: 'Notifications', label: 'Notificações', icon: 'bell' });
   }
 
-  return (
-    <View style={tw`flex-row justify-between items-center p-2 border-t border-gray-200 bg-white`}>
-      {/* Nome do app à esquerda */}
-      <TouchableOpacity onPress={() => handleNavigation('Home')}>
-        <Text style={tw`text-2xl font-bold text-blue-500`}>The Y</Text>
-      </TouchableOpacity>
+  const [activeScreen, setActiveScreen] = useState<keyof RootStackParamList>('Home');
 
-      {/* Ícones + labels à direita */}
-      <View style={tw`flex-row items-center`}>
-        {navItems.map((item) => (
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('state', () => {
+      const state = navigation.getState();
+      if (state?.routes && state.routes[state.index]) {
+        const currentRoute = state.routes[state.index].name as keyof RootStackParamList;
+        setActiveScreen(currentRoute);
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleNavPress = (screen: keyof RootStackParamList) => {
+    setActiveScreen(screen);
+    handleNavigation(screen);
+  };
+
+  return (
+    <View 
+      style={[
+        tw`flex-row justify-around items-center py-2 border-t border-gray-200 bg-white`,
+        { paddingBottom: Math.max(insets.bottom, 8) }
+      ]}
+    >
+      {navItems.map((item) => {
+        const isActive = activeScreen === item.screen;
+        return (
           <TouchableOpacity
             key={item.screen}
-            style={tw`items-center mx-2`}
-            onPress={() => handleNavigation(item.screen)}
+            style={tw`items-center flex-1`}
+            onPress={() => handleNavPress(item.screen)}
+            activeOpacity={0.7}
           >
             <FontAwesome
               name={item.icon}
-              size={24}
-              color={item.screen === 'Dashboard' ? 'purple' : 'blue'}
+              size={22}
+              color={isActive ? '#1DA1F2' : '#657786'}
             />
-            <Text style={tw`text-xs mt-1 ${item.screen === 'Dashboard' ? 'text-purple-500' : 'text-blue-500'}`}>
+            <Text 
+              style={tw`text-xs mt-1 ${isActive ? 'text-blue-500' : 'text-gray-500'}`}
+              numberOfLines={1}
+            >
               {item.label}
             </Text>
           </TouchableOpacity>
-        ))}
-
-        {/* Perfil do usuário */}
-        <TouchableOpacity
-          style={tw`items-center ml-2`}
-          onPress={() => handleNavigation('Profile')}
-        >
-          <Text style={tw`text-blue-500 font-bold text-xs`}>{username}</Text>
-        </TouchableOpacity>
-      </View>
+        );
+      })}
     </View>
   );
 }

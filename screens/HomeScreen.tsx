@@ -1,6 +1,7 @@
 // screens/HomeScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { View, FlatList, TouchableOpacity, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import Navbar from '../components/Navbar';
 import TweetInput from '../components/TweetInput';
@@ -41,6 +42,7 @@ export default function HomeScreen({ route, navigation }: Props) {
   const [tweets, setTweets] = useState<Tweet[]>([]);
   const [nextId, setNextId] = useState(3);
   const variant = ABTestingService.getUserVariant();
+  const insets = useSafeAreaInsets();
 
   // Medir tempo de renderização
   useRenderTime('HomeScreen');
@@ -91,34 +93,39 @@ const loadMoreTweets = () => {
 };
 
   return (
-    <View style={tw`flex-1 bg-gray-50`}>
-      <Navbar navigation={navigation} username={username} />
-      
-      <View style={tw`p-2 flex-1`}>
-        <TweetInput addTweet={addTweet} />
-        
-        {/* Botão de exemplo para analytics */}
-        <TouchableOpacity 
-          style={tw`bg-green-500 p-3 rounded mb-2`}
-          onPress={() => followUser('example_user')}
-        >
-          <Text style={tw`text-white text-center`}>Seguir Usuário Exemplo</Text>
-        </TouchableOpacity>
-
-        <FlatList
-          data={tweets}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <TweetCard 
-              tweet={item} 
-              likeTweet={likeTweet} 
-              navigation={navigation} 
-            />
-          )}
-          onEndReached={loadMoreTweets}
-          onEndReachedThreshold={0.5}
-        />
+    <View style={tw`flex-1 bg-white`}>
+      {/* Header */}
+      <View 
+        style={[
+          tw`bg-white border-b border-gray-200 px-4 py-3`,
+          { paddingTop: Math.max(insets.top, 12) }
+        ]}
+      >
+        <Text style={tw`text-xl font-bold text-gray-900`}>Home</Text>
       </View>
+
+      <FlatList
+        data={tweets}
+        keyExtractor={item => item.id}
+        ListHeaderComponent={
+          <View style={tw`border-b border-gray-200`}>
+            <TweetInput addTweet={addTweet} username={username} />
+          </View>
+        }
+        renderItem={({ item }) => (
+          <TweetCard 
+            tweet={item} 
+            likeTweet={likeTweet} 
+            navigation={navigation} 
+          />
+        )}
+        onEndReached={loadMoreTweets}
+        onEndReachedThreshold={0.5}
+        ItemSeparatorComponent={() => <View style={tw`border-b border-gray-100`} />}
+        showsVerticalScrollIndicator={false}
+      />
+      
+      <Navbar navigation={navigation as any} username={username} />
     </View>
   );
 }

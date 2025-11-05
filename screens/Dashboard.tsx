@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import tw from 'twrnc';
-import AnalyticsService from '../services/AnalyticsService';
+import AnalyticsService, { type AnalyticsEvent } from '../services/AnalyticsService';
 import ABTestingService from '../services/ABTestingService';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import {
@@ -13,15 +13,6 @@ import {
 
 type DashboardScreenProps = {
   navigation: StackNavigationProp<any>;
-};
-
-type AnalyticsEvent = {
-  type: string;
-  timestamp: number;
-  screenName?: string;
-  buttonName?: string;
-  renderTime?: number;
-  variant?: string;
 };
 
 type RenderTimeData = {
@@ -256,9 +247,6 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       <View style={tw`bg-white p-4 shadow-sm`}>
         <View style={tw`flex-row justify-between items-center mb-4`}>
           <View style={tw`flex-row items-center gap-4`}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Text style={tw`text-blue-500 font-bold text-lg`}>← Voltar</Text>
-            </TouchableOpacity>
             <View>
               <Text style={tw`text-2xl font-bold`}>Dashboard Analytics</Text>
               <Text style={tw`text-gray-600`}>
