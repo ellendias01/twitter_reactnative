@@ -1,6 +1,6 @@
 // screens/Dashboard.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
 import tw from 'twrnc';
 import AnalyticsService, { type AnalyticsEvent } from '../services/AnalyticsService';
 import ABTestingService from '../services/ABTestingService';
@@ -10,6 +10,7 @@ import {
   BarChart,
   PieChart
 } from 'react-native-chart-kit';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
 type DashboardScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -21,21 +22,21 @@ type RenderTimeData = {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Configuração do gráfico
+// Configuração do gráfico com tema escuro idêntico ao Flutter
 const chartConfig = {
-  backgroundColor: '#ffffff',
-  backgroundGradientFrom: '#ffffff',
-  backgroundGradientTo: '#ffffff',
+  backgroundColor: '#0F172A',
+  backgroundGradientFrom: '#0F172A',
+  backgroundGradientTo: '#0F172A',
   decimalPlaces: 0,
-  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
   style: {
     borderRadius: 16,
   },
   propsForDots: {
     r: '4',
     strokeWidth: '2',
-    stroke: '#ffa726',
+    stroke: '#60A5FA',
   },
 };
 
@@ -44,19 +45,18 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
   const [metrics, setMetrics] = useState<any>(null);
   const [updateCount, setUpdateCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'overview' | 'screens' | 'buttons' | 'performance' | 'abtest'>('overview');
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Carregar variante inicial e métricas
+  const loadInitialData = () => {
+    const variant = ABTestingService.getUserVariant();
+    setCurrentVariant(variant);
+    AnalyticsService.logScreenView('Dashboard', variant);
+    loadMetrics();
+  };
+
   useEffect(() => {
-    const loadInitialData = () => {
-      const variant = ABTestingService.getUserVariant();
-      setCurrentVariant(variant);
-      AnalyticsService.logScreenView('Dashboard', variant);
-      loadMetrics();
-    };
-
     loadInitialData();
     
-    // Atualizar métricas a cada 3 segundos
     const interval = setInterval(() => {
       loadMetrics();
       setUpdateCount(prev => prev + 1);
@@ -72,7 +72,6 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       const buttonClicks = AnalyticsService.getEventsByType('BUTTON_CLICK') as AnalyticsEvent[];
       const renderTimes = AnalyticsService.getEventsByType('RENDER_TIME') as AnalyticsEvent[];
       
-      // Calcular métricas com verificação de undefined
       const avgRenderTime = renderTimes.length > 0 
         ? renderTimes.reduce((acc: number, curr: AnalyticsEvent) => acc + (curr.renderTime || 0), 0) / renderTimes.length 
         : 0;
@@ -108,7 +107,21 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
         B: events.filter((e: AnalyticsEvent) => e.variant === 'B').length,
       };
 
+      // Simular dados do dashboard Flutter
+      const simulatedData = {
+        realtimeEvents: events.length,
+        avgScreenLoad: avgRenderTime,
+        avgApiResponse: avgRenderTime * 0.8,
+        avgMemory: (events.length * 0.1),
+        performanceMetrics: Array.from({length: 10}, (_, i) => ({ screenLoadTime: avgRenderTime * (0.9 + Math.random() * 0.2) })),
+        abTestResults: [
+          { version: 'A', users: variantDistribution.A, conversionRate: (variantDistribution.A / (variantDistribution.A + variantDistribution.B) * 100).toFixed(1), avgEngagement: (avgRenderTime * 0.8).toFixed(0), avgSessionTime: avgRenderTime.toFixed(0) },
+          { version: 'B', users: variantDistribution.B, conversionRate: (variantDistribution.B / (variantDistribution.A + variantDistribution.B) * 100).toFixed(1), avgEngagement: (avgRenderTime * 0.9).toFixed(0), avgSessionTime: (avgRenderTime * 1.2).toFixed(0) }
+        ]
+      };
+
       setMetrics({
+        ...simulatedData,
         totalEvents: events.length,
         screenViews: screenViewCounts,
         buttonClicks: buttonCounts,
@@ -120,6 +133,12 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
     } catch (error) {
       console.error('Error loading metrics:', error);
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadInitialData();
+    setTimeout(() => setRefreshing(false), 1000);
   };
 
   const handleToggleVariant = () => {
@@ -144,11 +163,20 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
     loadMetrics();
   };
 
-  // Preparar dados para gráficos
+  const handleNavigateToVariant = (variant: 'A' | 'B') => {
+    AnalyticsService.logButtonClick(`Navigate to Variant ${variant}`, 'Dashboard');
+    
+    // Navegar para a tela correspondente da variante
+    if (variant === 'A') {
+      navigation.navigate('VariantAScreen');
+    } else {
+      navigation.navigate('VariantBScreen');
+    }
+  };
+
   const prepareChartData = () => {
     if (!metrics) return { screenViewData: null, buttonClickData: null, renderTimeData: null, variantData: null };
 
-    // Dados para gráfico de barras (telas)
     const screenViewLabels = Object.keys(metrics.screenViews).map(name => 
       name.length > 8 ? name.substring(0, 8) + '...' : name
     );
@@ -159,13 +187,12 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       datasets: [
         {
           data: screenViewValues,
-          color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`,
+          color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
           strokeWidth: 2,
         },
       ],
     };
 
-    // Dados para gráfico de barras (botões)
     const buttonLabels = Object.keys(metrics.buttonClicks).map(name => 
       name.length > 8 ? name.substring(0, 8) + '...' : name
     );
@@ -176,13 +203,12 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       datasets: [
         {
           data: buttonValues,
-          color: (opacity = 1) => `rgba(0, 200, 83, ${opacity})`,
+          color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`,
           strokeWidth: 2,
         },
       ],
     };
 
-    // Dados para gráfico de barras (performance)
     const renderLabels = Object.keys(metrics.renderTimes).map(name => 
       name.length > 8 ? name.substring(0, 8) + '...' : name
     );
@@ -195,27 +221,26 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       datasets: [
         {
           data: renderValues,
-          color: (opacity = 1) => `rgba(255, 193, 7, ${opacity})`,
+          color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
           strokeWidth: 2,
         },
       ],
     };
 
-    // Dados para gráfico de pizza (A/B Test)
     const variantData = [
       {
         name: 'Variante A',
         population: metrics.variantDistribution.A,
-        color: '#8884d8',
-        legendFontColor: '#7F7F7F',
-        legendFontSize: 15,
+        color: '#3B82F6',
+        legendFontColor: '#CBD5E1',
+        legendFontSize: 12,
       },
       {
         name: 'Variante B',
         population: metrics.variantDistribution.B,
-        color: '#82ca9d',
-        legendFontColor: '#7F7F7F',
-        legendFontSize: 15,
+        color: '#10B981',
+        legendFontColor: '#CBD5E1',
+        legendFontSize: 12,
       },
     ];
 
@@ -226,334 +251,271 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
 
   if (!metrics) {
     return (
-      <View style={tw`flex-1 bg-gray-50 justify-center items-center`}>
-        <Text style={tw`text-lg`}>Carregando métricas...</Text>
+      <View style={tw`flex-1 bg-[#0F172A] justify-center items-center`}>
+        <Text style={tw`text-white text-lg`}>Carregando métricas...</Text>
       </View>
     );
   }
 
-  const ChartContainer = ({ children, title, height = 200 }: { children: React.ReactNode; title: string; height?: number }) => (
-    <View style={tw`bg-white p-4 rounded-lg shadow mb-4`}>
-      <Text style={tw`text-lg font-bold mb-4 text-center`}>{title}</Text>
+  const ChartContainer = ({ children, title, subtitle, height = 200 }: { children: React.ReactNode; title: string; subtitle?: string; height?: number }) => (
+    <View style={tw`bg-white bg-opacity-5 p-4 rounded-xl border border-white border-opacity-10 mb-4`}>
+      <Text style={tw`text-white text-lg font-bold`}>{title}</Text>
+      {subtitle && <Text style={tw`text-gray-400 text-sm mb-4`}>{subtitle}</Text>}
       <View style={[tw`items-center justify-center`, { height }]}>
         {children}
       </View>
     </View>
   );
 
+  const MetricCard = ({ title, value, icon, color, trend, subtitle }: any) => (
+    <View style={tw`bg-white bg-opacity-5 p-3 rounded-xl border border-white border-opacity-10`}>
+      <View style={tw`flex-row justify-between items-start mb-3`}>
+        <View style={[tw`p-2 rounded-lg`, { backgroundColor: `${color}20` }]}>
+          <Ionicons name={icon} size={20} color={color} />
+        </View>
+        <Text style={[tw`text-xs font-medium`, trend.startsWith('+') ? tw`text-green-400` : tw`text-red-400`]}>
+          {trend}
+        </Text>
+      </View>
+      <View>
+        <Text style={tw`text-white text-lg font-bold`}>{value}</Text>
+        <Text style={tw`text-gray-400 text-sm mt-1`}>{title}</Text>
+        <Text style={tw`text-gray-500 text-xs mt-1`}>{subtitle}</Text>
+      </View>
+    </View>
+  );
+
+  const ABTestCard = ({ result, isWinner }: any) => (
+    <View style={[tw`p-3 rounded-lg`, isWinner ? tw`bg-green-500 bg-opacity-10 border border-green-500 border-opacity-50` : tw`bg-white bg-opacity-5 border border-white border-opacity-10`]}>
+      <View style={tw`flex-row justify-between items-start mb-3`}>
+        <Text style={tw`text-white text-base font-bold`}>Versão {result.version}</Text>
+        {isWinner && (
+          <View style={tw`bg-green-500 px-2 py-1 rounded-full`}>
+            <Text style={tw`text-white text-xs font-bold`}>Vencedor</Text>
+          </View>
+        )}
+      </View>
+      <View style={tw`flex-row flex-wrap justify-between`}>
+        <View style={tw`w-1/2 mb-2`}>
+          <Text style={tw`text-white text-sm font-bold`}>{result.users}</Text>
+          <Text style={tw`text-gray-400 text-xs`}>Usuários</Text>
+        </View>
+        <View style={tw`w-1/2 mb-2`}>
+          <Text style={tw`text-white text-sm font-bold`}>{result.conversionRate}%</Text>
+          <Text style={tw`text-gray-400 text-xs`}>Conversão</Text>
+        </View>
+        <View style={tw`w-1/2`}>
+          <Text style={tw`text-white text-sm font-bold`}>{result.avgEngagement}%</Text>
+          <Text style={tw`text-gray-400 text-xs`}>Engajamento</Text>
+        </View>
+        <View style={tw`w-1/2`}>
+          <Text style={tw`text-white text-sm font-bold`}>{result.avgSessionTime}s</Text>
+          <Text style={tw`text-gray-400 text-xs`}>Tempo Médio</Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
-    <View style={tw`flex-1 bg-gray-50`}>
-      {/* Header */}
-      <View style={tw`bg-white p-4 shadow-sm`}>
-        <View style={tw`flex-row justify-between items-center mb-4`}>
-          <View style={tw`flex-row items-center gap-4`}>
-            <View>
-              <Text style={tw`text-2xl font-bold`}>Dashboard Analytics</Text>
-              <Text style={tw`text-gray-600`}>
-                Métricas em tempo real - {updateCount} atualizações
-              </Text>
+    <View style={tw`flex-1 bg-[#0F172A]`}>
+      <ScrollView 
+        style={tw`flex-1 p-4`}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#3B82F6']}
+            tintColor="#3B82F6"
+          />
+        }
+      >
+        {/* Header */}
+        <View style={tw`mb-6`}>
+          <View style={tw`flex-row justify-between items-start`}>
+            <View style={tw`flex-1`}>
+              <Text style={tw`text-white text-2xl font-bold`}>Dashboard de Performance</Text>
+              <Text style={tw`text-gray-400 text-sm mt-1`}>Monitoramento em tempo real</Text>
             </View>
+          
           </View>
           
-          <View style={tw`bg-blue-100 px-3 py-1 rounded-full`}>
-            <Text style={tw`font-bold text-blue-800`}>Variante {currentVariant}</Text>
+          <View style={tw`bg-green-500 bg-opacity-20 px-4 py-2 rounded-full border border-green-500 border-opacity-30 self-start mt-4`}>
+            <View style={tw`flex-row items-center`}>
+              <View style={tw`w-2 h-2 bg-green-400 rounded-full mr-2`} />
+              <Text style={tw`text-green-400 font-medium`}>Live: {metrics.realtimeEvents || 0} eventos</Text>
+            </View>
           </View>
         </View>
 
-        {/* Cards de Resumo */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={tw`mb-4`}>
-          <View style={tw`flex-row gap-3`}>
-            <View style={tw`bg-blue-50 p-4 rounded-lg min-w-32`}>
-              <Text style={tw`text-sm font-medium text-blue-600`}>Total Eventos</Text>
-              <Text style={tw`text-2xl font-bold text-blue-800`}>{metrics.totalEvents}</Text>
-            </View>
-            
-            <View style={tw`bg-green-50 p-4 rounded-lg min-w-32`}>
-              <Text style={tw`text-sm font-medium text-green-600`}>Visualizações</Text>
-              <Text style={tw`text-2xl font-bold text-green-800`}>
-                {Object.values(metrics.screenViews).reduce((sum: number, val: any) => sum + val, 0)}
+        {/* Controles A/B Test */}
+        <View style={tw`bg-white bg-opacity-5 p-4 rounded-xl border border-white border-opacity-10 mb-6`}>
+          <Text style={tw`text-white text-lg font-bold mb-4`}>Controles do Teste A/B</Text>
+          
+          <View style={tw`flex-row gap-3 mb-4`}>
+            <TouchableOpacity
+              style={tw`flex-1 bg-blue-500 bg-opacity-20 p-3 rounded-xl border border-blue-500 border-opacity-30`}
+              onPress={handleToggleVariant}
+            >
+              <Text style={tw`text-blue-400 text-center font-medium`}>
+                Trocar para {currentVariant === 'A' ? 'B' : 'A'}
               </Text>
-            </View>
+            </TouchableOpacity>
             
-            <View style={tw`bg-purple-50 p-4 rounded-lg min-w-32`}>
-              <Text style={tw`text-sm font-medium text-purple-600`}>Cliques</Text>
-              <Text style={tw`text-2xl font-bold text-purple-800`}>
-                {Object.values(metrics.buttonClicks).reduce((sum: number, val: any) => sum + val, 0)}
-              </Text>
-            </View>
-            
-            <View style={tw`bg-orange-50 p-4 rounded-lg min-w-32`}>
-              <Text style={tw`text-sm font-medium text-orange-600`}>Tempo Render</Text>
-              <Text style={tw`text-2xl font-bold text-orange-800`}>
-                {metrics.avgRenderTime.toFixed(0)}ms
-              </Text>
+            <TouchableOpacity
+              style={tw`flex-1 bg-gray-500 bg-opacity-20 p-3 rounded-xl border border-gray-500 border-opacity-30`}
+              onPress={handleResetABTest}
+            >
+              <Text style={tw`text-gray-400 text-center font-medium`}>Reset A/B</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={tw`mb-4`}>
+            <Text style={tw`text-gray-400 text-sm mb-2`}>Variante Atual</Text>
+            <View style={tw`bg-blue-500 px-4 py-2 rounded-full self-start`}>
+              <Text style={tw`text-white font-bold`}>Variante {currentVariant}</Text>
             </View>
           </View>
-        </ScrollView>
+        
+        </View>
 
-        {/* Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={tw`flex-row`}>
+        {/* Métricas Principais - Grid 2x2 */}
+        <View style={tw`mb-6`}>
+          <View style={tw`flex-row flex-wrap -mx-1.5`}>
+            <View style={tw`w-1/2 px-1.5 mb-3`}>
+              <MetricCard
+                title="Carga de Tela"
+                value={`${metrics.avgScreenLoad?.toFixed(0) || 0}ms`}
+                icon="phone-portrait-outline"
+                color="#3B82F6"
+                trend="+12%"
+                subtitle="Performance Monitor"
+              />
+            </View>
+            <View style={tw`w-1/2 px-1.5 mb-3`}>
+              <MetricCard
+                title="Resposta API"
+                value={`${metrics.avgApiResponse?.toFixed(0) || 0}ms`}
+                icon="flash-outline"
+                color="#8B5CF6"
+                trend="+8%"
+                subtitle="Network Monitor"
+              />
+            </View>
+            <View style={tw`w-1/2 px-1.5`}>
+              <MetricCard
+                title="Uso de Memória"
+                value={`${metrics.avgMemory?.toFixed(1) || 0}%`}
+                icon="hardware-chip-outline"
+                color="#10B981"
+                trend="-3%"
+                subtitle="System Metrics"
+              />
+            </View>
+            <View style={tw`w-1/2 px-1.5`}>
+              <MetricCard
+                title="Throughput"
+                value={`${metrics.realtimeEvents || 0}/s`}
+                icon="server-outline"
+                color="#F59E0B"
+                trend="+15%"
+                subtitle="Load Test"
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Resultados do Teste A/B */}
+        <View style={tw`bg-white bg-opacity-5 p-4 rounded-xl border border-white border-opacity-10 mb-6`}>
+          <View style={tw`flex-row items-center mb-4`}>
+            <Ionicons name="trending-up" size={20} color="white" />
+            <Text style={tw`text-white text-lg font-bold ml-2`}>Resultados do Teste A/B</Text>
+          </View>
+          <View style={tw`flex-row -mx-1.5`}>
+            <View style={tw`w-1/2 px-1.5`}>
+              <ABTestCard result={metrics.abTestResults?.[0]} isWinner={false} />
+            </View>
+            <View style={tw`w-1/2 px-1.5`}>
+              <ABTestCard result={metrics.abTestResults?.[1]} isWinner={true} />
+            </View>
+          </View>
+        </View>
+
+        {/* Gráfico de Performance */}
+        <ChartContainer 
+          title="Tendência de Performance" 
+          subtitle="Últimas 10 medições"
+          height={250}
+        >
+          {metrics.performanceMetrics && metrics.performanceMetrics.length > 0 ? (
+            <LineChart
+              data={{
+                labels: metrics.performanceMetrics.map((_: any, i: { toString: () => any; }) => i.toString()),
+                datasets: [
+                  {
+                    data: metrics.performanceMetrics.map((m: { screenLoadTime: any; }) => m.screenLoadTime),
+                    color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+                    strokeWidth: 2,
+                  },
+                ],
+              }}
+              width={screenWidth - 64}
+              height={200}
+              chartConfig={chartConfig}
+              bezier
+              style={tw`rounded-xl`}
+            />
+          ) : (
+            <Text style={tw`text-gray-400 text-center py-8`}>
+              Nenhuma métrica de performance registrada
+            </Text>
+          )}
+          <View style={tw`flex-row justify-center mt-2`}>
+            <View style={tw`flex-row items-center`}>
+              <View style={tw`w-3 h-3 bg-blue-500 rounded-full mr-2`} />
+              <Text style={tw`text-white text-sm`}>Carga de Tela (ms)</Text>
+            </View>
+          </View>
+        </ChartContainer>
+
+        {/* Ferramentas de Monitoramento */}
+        <View style={tw`bg-blue-500 bg-opacity-10 p-4 rounded-xl border border-blue-500 border-opacity-30 mb-6`}>
+          <Text style={tw`text-white text-lg font-bold`}>Ferramentas de Monitoramento</Text>
+          <Text style={tw`text-gray-400 text-sm mb-4`}>Integradas</Text>
+          <View style={tw`flex-row flex-wrap -mx-1`}>
             {[
-              { key: 'overview', label: 'Visão Geral' },
-              { key: 'screens', label: 'Telas' },
-              { key: 'buttons', label: 'Botões' },
-              { key: 'performance', label: 'Performance' },
-              { key: 'abtest', label: 'A/B Test' }
-            ].map((tab) => (
-              <TouchableOpacity
-                key={tab.key}
-                style={tw`px-4 py-2 mx-1 rounded-full ${
-                  activeTab === tab.key ? 'bg-blue-500' : 'bg-gray-200'
-                }`}
-                onPress={() => setActiveTab(tab.key as any)}
-              >
-                <Text style={tw`font-medium ${
-                  activeTab === tab.key ? 'text-white' : 'text-gray-700'
-                }`}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
+              { name: 'Performance Monitor', desc: 'Monitoramento de performance' },
+              { name: 'System Metrics', desc: 'Análise de performance em campo' },
+              { name: 'Load Testing', desc: 'Testes de carga e stress' },
+              { name: 'Network Monitor', desc: 'Condições de rede' },
+              { name: 'User Analytics', desc: 'Testes em condições reais' },
+              { name: 'Real-time Analytics', desc: 'Monitoramento tempo real' },
+            ].map((tool, index) => (
+              <View key={index} style={tw`w-1/2 px-1 mb-2`}>
+                <View style={tw`bg-white bg-opacity-5 p-3 rounded-lg`}>
+                  <Text style={tw`text-white font-medium text-sm`}>{tool.name}</Text>
+                  <Text style={tw`text-gray-400 text-xs mt-1`}>{tool.desc}</Text>
+                </View>
+              </View>
             ))}
           </View>
-        </ScrollView>
-      </View>
-
-      {/* Conteúdo das Tabs */}
-      <ScrollView style={tw`flex-1 p-4`}>
-        {activeTab === 'overview' && (
-          <View style={tw`space-y-4`}>
-            <ChartContainer title="Visualizações por Tela" height={300}>
-              {screenViewData && screenViewData.datasets[0].data.length > 0 ? (
-                <BarChart
-                  data={screenViewData}
-                  width={screenWidth - 64}
-                  height={220}
-                  chartConfig={chartConfig}
-                  verticalLabelRotation={30}
-                  fromZero={true}
-                  showValuesOnTopOfBars={true}
-                />
-              ) : (
-                <Text style={tw`text-center text-gray-500 py-8`}>
-                  Nenhuma visualização de tela registrada
-                </Text>
-              )}
-            </ChartContainer>
-
-            <ChartContainer title="Distribuição A/B Test" height={300}>
-              {variantData && variantData.some(d => d.population > 0) ? (
-                <PieChart
-                  data={variantData}
-                  width={screenWidth - 64}
-                  height={220}
-                  chartConfig={chartConfig}
-                  accessor="population"
-                  backgroundColor="transparent"
-                  paddingLeft="15"
-                  absolute
-                />
-              ) : (
-                <Text style={tw`text-center text-gray-500 py-8`}>
-                  Nenhum dado de variante registrado
-                </Text>
-              )}
-            </ChartContainer>
-          </View>
-        )}
-
-        {activeTab === 'screens' && (
-          <ChartContainer title="Visualizações por Tela" height={300}>
-            {screenViewData && screenViewData.datasets[0].data.length > 0 ? (
-              <>
-                <BarChart
-                  data={screenViewData}
-                  width={screenWidth - 64}
-                  height={220}
-                  chartConfig={chartConfig}
-                  verticalLabelRotation={30}
-                  fromZero={true}
-                  showValuesOnTopOfBars={true}
-                />
-                <View style={tw`mt-4 w-full`}>
-                  {Object.entries(metrics.screenViews).map(([name, views]) => (
-                    <View key={name} style={tw`flex-row justify-between items-center p-3 bg-gray-50 rounded mb-2`}>
-                      <Text style={tw`font-medium flex-1`}>{name}</Text>
-                      <Text style={tw`bg-blue-100 px-3 py-1 rounded-full text-blue-800 font-medium`}>
-                        {views as number} visualizações
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            ) : (
-              <Text style={tw`text-center text-gray-500 py-8`}>
-                Nenhuma visualização de tela registrada
-              </Text>
-            )}
-          </ChartContainer>
-        )}
-
-        {activeTab === 'buttons' && (
-          <ChartContainer title="Cliques em Botões" height={300}>
-            {buttonClickData && buttonClickData.datasets[0].data.length > 0 ? (
-              <>
-                <BarChart
-                  data={buttonClickData}
-                  width={screenWidth - 64}
-                  height={220}
-                  chartConfig={chartConfig}
-                  verticalLabelRotation={30}
-                  fromZero={true}
-                  showValuesOnTopOfBars={true}
-                />
-                <View style={tw`mt-4 w-full`}>
-                  {Object.entries(metrics.buttonClicks).map(([name, clicks]) => (
-                    <View key={name} style={tw`flex-row justify-between items-center p-3 bg-gray-50 rounded mb-2`}>
-                      <Text style={tw`font-medium flex-1`}>{name}</Text>
-                      <Text style={tw`bg-green-100 px-3 py-1 rounded-full text-green-800 font-medium`}>
-                        {clicks as number} cliques
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            ) : (
-              <Text style={tw`text-center text-gray-500 py-8`}>
-                Nenhum clique em botão registrado
-              </Text>
-            )}
-          </ChartContainer>
-        )}
-
-        {activeTab === 'performance' && (
-          <ChartContainer title="Tempo de Renderização" height={300}>
-            {renderTimeData && renderTimeData.datasets[0].data.length > 0 ? (
-              <>
-                <BarChart
-                  data={renderTimeData}
-                  width={screenWidth - 64}
-                  height={220}
-                  chartConfig={chartConfig}
-                  verticalLabelRotation={30}
-                  fromZero={true}
-                  showValuesOnTopOfBars={true}
-                />
-                <View style={tw`mt-4 w-full`}>
-                  {Object.entries(metrics.renderTimes as RenderTimeData).map(([name, times]) => {
-                    const avgTime = times.length > 0 
-                      ? Math.round(times.reduce((sum, time) => sum + time, 0) / times.length)
-                      : 0;
-                    return (
-                      <View key={name} style={tw`flex-row justify-between items-center p-3 bg-gray-50 rounded mb-2`}>
-                        <View style={tw`flex-1`}>
-                          <Text style={tw`font-medium`}>{name}</Text>
-                          <Text style={tw`text-xs text-gray-600`}>{times.length} amostras</Text>
-                        </View>
-                        <Text style={tw`bg-yellow-100 px-3 py-1 rounded-full text-yellow-800 font-medium`}>
-                          {avgTime}ms
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
-            ) : (
-              <Text style={tw`text-center text-gray-500 py-8`}>
-                Nenhuma métrica de performance registrada
-              </Text>
-            )}
-          </ChartContainer>
-        )}
-
-        {activeTab === 'abtest' && (
-          <View style={tw`space-y-4`}>
-            <ChartContainer title="Distribuição de Variantes" height={300}>
-              {variantData && variantData.some(d => d.population > 0) ? (
-                <>
-                  <PieChart
-                    data={variantData}
-                    width={screenWidth - 64}
-                    height={220}
-                    chartConfig={chartConfig}
-                    accessor="population"
-                    backgroundColor="transparent"
-                    paddingLeft="15"
-                    absolute
-                  />
-                  <View style={tw`mt-4 w-full space-y-2`}>
-                    {variantData.map((item, index) => (
-                      <View key={index} style={tw`flex-row justify-between items-center p-3 bg-gray-50 rounded`}>
-                        <View style={tw`flex-row items-center gap-3`}>
-                          <View 
-                            style={[
-                              tw`w-4 h-4 rounded-full`,
-                              { backgroundColor: item.color }
-                            ]}
-                          />
-                          <Text style={tw`font-medium`}>{item.name}</Text>
-                        </View>
-                        <Text style={tw`bg-purple-100 px-3 py-1 rounded-full text-purple-800 font-medium`}>
-                          {item.population} eventos
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <Text style={tw`text-center text-gray-500 py-8`}>
-                  Nenhum dado de variante registrado
-                </Text>
-              )}
-            </ChartContainer>
-
-            <View style={tw`bg-white p-4 rounded-lg shadow`}>
-              <Text style={tw`text-lg font-bold mb-4`}>Controles do Teste A/B</Text>
-              
-              <View style={tw`flex-row gap-2 mb-4`}>
-                <TouchableOpacity 
-                  style={tw`flex-1 bg-blue-500 p-3 rounded-lg`}
-                  onPress={handleToggleVariant}
-                >
-                  <Text style={tw`text-white text-center font-medium`}>
-                    Trocar para {currentVariant === 'A' ? 'B' : 'A'}
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={tw`flex-1 bg-gray-500 p-3 rounded-lg`}
-                  onPress={handleResetABTest}
-                >
-                  <Text style={tw`text-white text-center font-medium`}>Reset A/B</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={tw`mb-4`}>
-                <Text style={tw`font-medium mb-2`}>Variante Atual</Text>
-                <View style={tw`bg-blue-500 px-4 py-2 rounded-full self-start`}>
-                  <Text style={tw`text-white font-bold text-lg`}>Variante {currentVariant}</Text>
-                </View>
-              </View>
-              
-              <View style={tw`mb-4`}>
-                <Text style={tw`font-medium mb-2`}>Hipótese do Teste</Text>
-                <Text style={tw`text-gray-600 text-sm`}>
-                  A adição da aba "Notificações" (Variante B) aumenta o engajamento do usuário 
-                  comparado ao layout original (Variante A).
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
+        </View>
 
         {/* Botão Limpar Dados */}
         <TouchableOpacity 
-          style={tw`bg-red-500 p-4 rounded-lg mt-4`}
+          style={tw`bg-red-500 bg-opacity-20 p-4 rounded-xl border border-red-500 border-opacity-30 mb-6`}
           onPress={handleClearData}
         >
-          <Text style={tw`text-white text-center font-bold`}>Limpar Todos os Dados</Text>
+          <Text style={tw`text-red-400 text-center font-bold`}>Limpar Todos os Dados</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={tw`absolute bottom-6 right-6 bg-blue-500 w-14 h-14 rounded-full items-center justify-center shadow-lg`}
+        onPress={onRefresh}
+      >
+        <Ionicons name="refresh" size={24} color="white" />
+      </TouchableOpacity>
     </View>
   );
 }

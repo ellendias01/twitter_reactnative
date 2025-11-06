@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import tw from 'twrnc';
-import { FontAwesome } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ABTestingService from '../services/ABTestingService';
 import AnalyticsService from '../services/AnalyticsService';
@@ -32,7 +32,13 @@ export default function Navbar({ navigation, username }: NavbarProps) {
       AnalyticsService.logButtonClick('Notifications_Blocked', 'Navbar');
       Alert.alert(
         'Acesso Restrito',
-        'Esta funcionalidade está disponível apenas para alguns usuários durante o teste.'
+        'Esta funcionalidade está disponível apenas para alguns usuários durante o teste.',
+        [
+          {
+            text: 'Entendi',
+            style: 'default'
+          }
+        ]
       );
       return;
     }
@@ -45,14 +51,14 @@ export default function Navbar({ navigation, username }: NavbarProps) {
   };
 
   const navItems: { screen: keyof RootStackParamList; label: string; icon: string }[] = [
-    { screen: 'Home', label: 'Home', icon: 'home' },
-    { screen: 'Profile', label: 'Perfil', icon: 'user' },
-    { screen: 'Following', label: 'Seguindo', icon: 'users' },
-    { screen: 'Dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { screen: 'Home', label: 'Início', icon: 'home' },
+    { screen: 'Profile', label: 'Perfil', icon: 'person' },
+    { screen: 'Following', label: 'Seguindo', icon: 'people' },
+    { screen: 'Dashboard', label: 'Analytics', icon: 'analytics' },
   ];
 
   if (variant === 'B') {
-    navItems.push({ screen: 'Notifications', label: 'Notificações', icon: 'bell' });
+    navItems.push({ screen: 'Notifications', label: 'Notificações', icon: 'notifications' });
   }
 
   const [activeScreen, setActiveScreen] = useState<keyof RootStackParamList>('Home');
@@ -76,12 +82,14 @@ export default function Navbar({ navigation, username }: NavbarProps) {
   return (
     <View 
       style={[
-        tw`flex-row justify-around items-center py-2 border-t border-gray-200 bg-white`,
-        { paddingBottom: Math.max(insets.bottom, 8) }
+        tw`flex-row justify-around items-center py-3 border-t border-white border-opacity-10 bg-[#0F172A]`,
+        { paddingBottom: Math.max(insets.bottom, 12) }
       ]}
     >
       {navItems.map((item) => {
         const isActive = activeScreen === item.screen;
+        const isNotifications = item.screen === 'Notifications';
+        
         return (
           <TouchableOpacity
             key={item.screen}
@@ -89,13 +97,31 @@ export default function Navbar({ navigation, username }: NavbarProps) {
             onPress={() => handleNavPress(item.screen)}
             activeOpacity={0.7}
           >
-            <FontAwesome
-              name={item.icon}
-              size={22}
-              color={isActive ? '#1DA1F2' : '#657786'}
-            />
+            <View style={tw`relative`}>
+              <View style={[
+                tw`p-2 rounded-full mb-1`,
+                isActive 
+                  ? 'bg-blue-500 bg-opacity-20 border border-blue-500 border-opacity-30' 
+                  : 'bg-transparent'
+              ]}>
+                <Ionicons
+                  name={item.icon as any}
+                  size={22}
+                  color={isActive ? '#60A5FA' : '#6B7280'}
+                />
+              </View>
+              
+              {/* Badge para Notificações (se for variante B) */}
+              {isNotifications && variant === 'B' && (
+                <View style={tw`absolute -top-1 -right-1 bg-red-500 w-3 h-3 rounded-full border-2 border-[#0F172A]`} />
+              )}
+            </View>
+            
             <Text 
-              style={tw`text-xs mt-1 ${isActive ? 'text-blue-500' : 'text-gray-500'}`}
+              style={[
+                tw`text-xs font-medium`,
+                isActive ? tw`text-blue-400` : tw`text-gray-400`
+              ]}
               numberOfLines={1}
             >
               {item.label}

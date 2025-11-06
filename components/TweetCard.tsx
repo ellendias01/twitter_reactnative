@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
 import tw from 'twrnc';
-import { FontAwesome } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import AnalyticsService from '../services/AnalyticsService';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -20,29 +20,43 @@ type Tweet = {
   comments: number;
   time: string;
   avatar: string;
+  isVerified?: boolean;
+  isLiked?: boolean;
+  isRetweeted?: boolean;
 };
 
 type TweetCardProps = {
   tweet: Tweet;
   likeTweet: (id: string) => void;
+  retweetTweet?: (id: string) => void;
   navigation: NativeStackNavigationProp<any>;
 };
 
-export default function TweetCard({ tweet, likeTweet, navigation }: TweetCardProps) {
+export default function TweetCard({ tweet, likeTweet, retweetTweet, navigation }: TweetCardProps) {
+  const [isLiked, setIsLiked] = useState(tweet.isLiked || false);
+  const [isRetweeted, setIsRetweeted] = useState(tweet.isRetweeted || false);
+  const [likeCount, setLikeCount] = useState(tweet.likes);
+  const [retweetCount, setRetweetCount] = useState(tweet.retweets);
+
   const handleLike = () => {
     likeTweet(tweet.id);
+    setIsLiked(!isLiked);
+    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
     AnalyticsService.logButtonClick('LikeTweet', 'TweetCard');
   };
 
   const handleComment = () => {
     AnalyticsService.logButtonClick('CommentTweet', 'TweetCard');
-    // Navegar para tela de comentários (implementar depois)
     alert(`Comentar no tweet de ${tweet.username}`);
   };
 
   const handleRetweet = () => {
+    if (retweetTweet) {
+      retweetTweet(tweet.id);
+    }
+    setIsRetweeted(!isRetweeted);
+    setRetweetCount(prev => isRetweeted ? prev - 1 : prev + 1);
     AnalyticsService.logButtonClick('RetweetTweet', 'TweetCard');
-    alert(`Retweetar tweet de ${tweet.username}`);
   };
 
   const handleProfilePress = () => {
@@ -50,110 +64,148 @@ export default function TweetCard({ tweet, likeTweet, navigation }: TweetCardPro
     navigation.navigate('Profile', { username: tweet.username });
   };
 
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(tweet.likes);
-
-  const handleLikePress = () => {
-    setIsLiked(!isLiked);
-    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-    handleLike();
+  const handleShare = () => {
+    AnalyticsService.logButtonClick('ShareTweet', 'TweetCard');
+    alert(`Compartilhar tweet de ${tweet.username}`);
   };
+
+  const ActionButton = ({ 
+    icon, 
+    count, 
+    isActive, 
+    activeColor, 
+    onPress, 
+    label 
+  }: {
+    icon: string;
+    count: number;
+    isActive: boolean;
+    activeColor: string;
+    onPress: () => void;
+    label: string;
+  }) => (
+    <TouchableOpacity 
+      style={tw`flex-row items-center px-3 py-2 rounded-full`}
+      onPress={onPress}
+    >
+      <Ionicons 
+        name={icon as any} 
+        size={18} 
+        color={isActive ? activeColor : '#6B7280'}
+        style={tw`mr-2`}
+      />
+      {count > 0 && (
+        <Text style={[
+          tw`text-sm font-medium`,
+          isActive ? { color: activeColor } : tw`text-gray-400`
+        ]}>
+          {count}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
 
   return (
     <TouchableOpacity 
-      activeOpacity={0.7}
-      style={tw`bg-white px-4 py-3`}
+      activeOpacity={0.8}
+      style={tw`bg-white bg-opacity-5 p-4 rounded-xl border border-white border-opacity-10 mb-3`}
     >
       <View style={tw`flex-row`}>
         {/* Avatar */}
         <TouchableOpacity onPress={handleProfilePress} style={tw`mr-3`}>
           <Image
             source={{ uri: tweet.avatar || 'https://i.pravatar.cc/50' }}
-            style={tw`w-12 h-12 rounded-full`}
+            style={tw`w-12 h-12 rounded-full border-2 border-blue-500 border-opacity-50`}
           />
         </TouchableOpacity>
 
         {/* Content */}
         <View style={tw`flex-1`}>
           {/* Header */}
-          <View style={tw`flex-row items-center mb-1`}>
-            <TouchableOpacity onPress={handleProfilePress}>
-              <Text style={tw`font-bold text-gray-900 text-base mr-2`}>{tweet.username}</Text>
+          <View style={tw`flex-row items-center mb-2`}>
+            <TouchableOpacity onPress={handleProfilePress} style={tw`flex-row items-center`}>
+              <Text style={tw`text-white font-bold text-base mr-2`}>{tweet.username}</Text>
+              {tweet.isVerified && (
+                <Ionicons name="checkmark-circle" size={16} color="#60A5FA" />
+              )}
             </TouchableOpacity>
-            <Text style={tw`text-gray-500 text-sm`}>@{tweet.username.toLowerCase()}</Text>
-            <Text style={tw`text-gray-500 text-sm mx-1`}>·</Text>
-            <Text style={tw`text-gray-500 text-sm`}>{tweet.time}</Text>
+            <Text style={tw`text-gray-400 text-sm mx-2`}>·</Text>
+            <Text style={tw`text-gray-400 text-sm`}>{tweet.time}</Text>
           </View>
 
           {/* Tweet Text */}
-          <Text style={tw`text-gray-900 text-base mb-3 leading-5`}>{tweet.text}</Text>
+          <Text style={tw`text-gray-100 text-base mb-4 leading-6`}>{tweet.text}</Text>
 
           {/* Actions */}
-          <View style={tw`flex-row justify-between items-center -ml-2`}>
+          <View style={tw`flex-row justify-between items-center`}>
             {/* Comment */}
-            <TouchableOpacity 
-              style={tw`flex-row items-center px-2 py-1`}
+            <ActionButton
+              icon="chatbubble-outline"
+              count={tweet.comments}
+              isActive={false}
+              activeColor="#60A5FA"
               onPress={handleComment}
-            >
-              <FontAwesome 
-                name="comment-o" 
-                size={18} 
-                color="#657786" 
-                style={tw`mr-2`}
-              />
-              {tweet.comments > 0 && (
-                <Text style={tw`text-gray-500 text-sm`}>{tweet.comments}</Text>
-              )}
-            </TouchableOpacity>
+              label="Comentar"
+            />
 
             {/* Retweet */}
-            <TouchableOpacity 
-              style={tw`flex-row items-center px-2 py-1`}
+            <ActionButton
+              icon="repeat-outline"
+              count={retweetCount}
+              isActive={isRetweeted}
+              activeColor="#10B981"
               onPress={handleRetweet}
-            >
-              <FontAwesome 
-                name="retweet" 
-                size={18} 
-                color="#657786"
-                style={tw`mr-2`}
-              />
-              {tweet.retweets > 0 && (
-                <Text style={tw`text-gray-500 text-sm`}>{tweet.retweets}</Text>
-              )}
-            </TouchableOpacity>
+              label="Retweet"
+            />
 
             {/* Like */}
-            <TouchableOpacity 
-              style={tw`flex-row items-center px-2 py-1`} 
-              onPress={handleLikePress}
-            >
-              <FontAwesome 
-                name={isLiked ? "heart" : "heart-o"} 
-                size={18} 
-                color={isLiked ? "#F91880" : "#657786"}
-                style={tw`mr-2`}
-              />
-              {likeCount > 0 && (
-                <Text style={tw`text-sm ${isLiked ? 'text-red-500' : 'text-gray-500'}`}>
-                  {likeCount}
-                </Text>
-              )}
-            </TouchableOpacity>
+            <ActionButton
+              icon={isLiked ? "heart" : "heart-outline"}
+              count={likeCount}
+              isActive={isLiked}
+              activeColor="#EF4444"
+              onPress={handleLike}
+              label="Curtir"
+            />
 
             {/* Share */}
             <TouchableOpacity 
-              style={tw`flex-row items-center px-2 py-1`}
-              onPress={() => AnalyticsService.logButtonClick('ShareTweet', 'TweetCard')}
+              style={tw`flex-row items-center px-3 py-2 rounded-full`}
+              onPress={handleShare}
             >
-              <FontAwesome 
-                name="share" 
+              <Ionicons 
+                name="share-social-outline" 
                 size={18} 
-                color="#657786"
+                color="#6B7280"
               />
             </TouchableOpacity>
           </View>
         </View>
       </View>
+
+      {/* Engagement Stats */}
+      {(likeCount > 0 || retweetCount > 0 || tweet.comments > 0) && (
+        <View style={tw`flex-row items-center mt-3 pt-3 border-t border-white border-opacity-5`}>
+          {retweetCount > 0 && (
+            <View style={tw`flex-row items-center mr-4`}>
+              <Ionicons name="repeat" size={14} color="#10B981" />
+              <Text style={tw`text-gray-400 text-xs ml-1`}>{retweetCount}</Text>
+            </View>
+          )}
+          {likeCount > 0 && (
+            <View style={tw`flex-row items-center mr-4`}>
+              <Ionicons name="heart" size={14} color="#EF4444" />
+              <Text style={tw`text-gray-400 text-xs ml-1`}>{likeCount}</Text>
+            </View>
+          )}
+          {tweet.comments > 0 && (
+            <View style={tw`flex-row items-center`}>
+              <Ionicons name="chatbubble" size={14} color="#60A5FA" />
+              <Text style={tw`text-gray-400 text-xs ml-1`}>{tweet.comments}</Text>
+            </View>
+          )}
+        </View>
+      )}
     </TouchableOpacity>
   );
 }

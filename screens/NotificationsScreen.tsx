@@ -1,8 +1,8 @@
 // screens/NotificationsScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Image, ScrollView } from 'react-native';
 import tw from 'twrnc';
-import { FontAwesome } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import AnalyticsService from '../services/AnalyticsService';
 import ABTestingService from '../services/ABTestingService';
 import { useRenderTime } from '../hooks/useRenderTime';
@@ -33,13 +33,14 @@ type Notification = {
   targetTweet?: string;
   time: string;
   read: boolean;
+  userAvatar?: string;
 };
 
 export default function NotificationsScreen({ route, navigation }: Props) {
   const { username } = route.params;
   const variant = ABTestingService.getUserVariant();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'mentions' | 'likes'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'mentions' | 'likes' | 'follows'>('all');
 
   useRenderTime('NotificationsScreen');
 
@@ -53,27 +54,30 @@ export default function NotificationsScreen({ route, navigation }: Props) {
         type: 'like',
         username: 'Alice',
         text: 'curtiu seu tweet',
-        targetTweet: 'Hello world! Welcome to The Y!',
+        targetTweet: 'Hello world! Welcome to The Y! Building amazing products with React Native 🚀',
         time: '5 min',
-        read: false
+        read: false,
+        userAvatar: 'https://i.pravatar.cc/50?u=alice'
       },
       {
         id: '2',
         type: 'retweet',
         username: 'Bob',
         text: 'retweetou seu tweet',
-        targetTweet: 'Loving this new app!',
+        targetTweet: 'Loving this new app! The dark theme looks absolutely stunning.',
         time: '15 min',
-        read: false
+        read: false,
+        userAvatar: 'https://i.pravatar.cc/50?u=bob'
       },
       {
         id: '3',
         type: 'mention',
         username: 'Charlie',
         text: 'mencionou você em um tweet',
-        targetTweet: `Ótima conversa com @${username} hoje!`,
+        targetTweet: `Ótima conversa com @${username} hoje sobre desenvolvimento mobile!`,
         time: '1 h',
-        read: true
+        read: true,
+        userAvatar: 'https://i.pravatar.cc/50?u=charlie'
       },
       {
         id: '4',
@@ -81,16 +85,27 @@ export default function NotificationsScreen({ route, navigation }: Props) {
         username: 'Diana',
         text: 'começou a seguir você',
         time: '2 h',
-        read: true
+        read: true,
+        userAvatar: 'https://i.pravatar.cc/50?u=diana'
       },
       {
         id: '5',
         type: 'like',
         username: 'Eve',
         text: 'curtiu seu tweet',
-        targetTweet: 'Novo recurso de notificações!',
+        targetTweet: 'Novo recurso de notificações está incrível!',
         time: '3 h',
-        read: true
+        read: true,
+        userAvatar: 'https://i.pravatar.cc/50?u=eve'
+      },
+      {
+        id: '6',
+        type: 'follow',
+        username: 'TechNews',
+        text: 'começou a seguir você',
+        time: '4 h',
+        read: true,
+        userAvatar: 'https://i.pravatar.cc/50?u=technews'
       }
     ];
     setNotifications(mockNotifications);
@@ -110,11 +125,26 @@ export default function NotificationsScreen({ route, navigation }: Props) {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'like': return <FontAwesome name="heart" size={20} color="red" />;
-      case 'retweet': return <FontAwesome name="retweet" size={20} color="green" />;
-      case 'mention': return <FontAwesome name="at" size={20} color="blue" />;
-      case 'follow': return <FontAwesome name="user-plus" size={20} color="purple" />;
-      default: return <FontAwesome name="bell" size={20} color="gray" />;
+      case 'like': 
+        return <Ionicons name="heart" size={20} color="#EF4444" />;
+      case 'retweet': 
+        return <Ionicons name="repeat" size={20} color="#10B981" />;
+      case 'mention': 
+        return <Ionicons name="at" size={20} color="#3B82F6" />;
+      case 'follow': 
+        return <Ionicons name="person-add" size={20} color="#8B5CF6" />;
+      default: 
+        return <Ionicons name="notifications" size={20} color="#6B7280" />;
+    }
+  };
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'like': return 'bg-red-500 bg-opacity-20 border-red-500';
+      case 'retweet': return 'bg-green-500 bg-opacity-20 border-green-500';
+      case 'mention': return 'bg-blue-500 bg-opacity-20 border-blue-500';
+      case 'follow': return 'bg-purple-500 bg-opacity-20 border-purple-500';
+      default: return 'bg-gray-500 bg-opacity-20 border-gray-500';
     }
   };
 
@@ -122,81 +152,164 @@ export default function NotificationsScreen({ route, navigation }: Props) {
     if (activeTab === 'all') return true;
     if (activeTab === 'mentions') return notif.type === 'mention';
     if (activeTab === 'likes') return notif.type === 'like';
+    if (activeTab === 'follows') return notif.type === 'follow';
     return true;
   });
+
+  const unreadCount = notifications.filter(notif => !notif.read).length;
 
   // Tipagem explícita do NotificationCard
   const NotificationCard = ({ notification }: { notification: Notification }) => (
     <TouchableOpacity
-      style={tw`bg-white p-3 border-l-4 ${notification.read ? 'border-transparent' : 'border-blue-500'} mb-2 shadow`}
+      style={tw`bg-white bg-opacity-5 p-4 rounded-xl border border-white border-opacity-10 mb-3 ${
+        !notification.read ? 'border-l-4 border-l-blue-500' : ''
+      }`}
       onPress={() => handleNotificationPress(notification.id)}
     >
-      <View style={tw`flex-row items-start`}>
-        <View style={tw`mr-3 mt-1`}>
-          {getNotificationIcon(notification.type)}
+      <View style={tw`flex-row items-start gap-3`}>
+        <View style={tw`relative`}>
+          <Image
+            source={{ uri: notification.userAvatar || `https://i.pravatar.cc/50?u=${notification.username}` }}
+            style={tw`w-12 h-12 rounded-full border-2 border-gray-600`}
+          />
+          <View style={tw`absolute -bottom-1 -right-1 bg-[#0F172A] rounded-full p-1`}>
+            <View style={tw`p-1 rounded-full ${getNotificationColor(notification.type)}`}>
+              {getNotificationIcon(notification.type)}
+            </View>
+          </View>
         </View>
+        
         <View style={tw`flex-1`}>
-          <View style={tw`flex-row justify-between items-start`}>
-            <Text style={tw`font-bold text-gray-900`}>{notification.username}</Text>
+          <View style={tw`flex-row justify-between items-start mb-1`}>
+            <Text style={tw`text-white font-bold text-base`}>{notification.username}</Text>
             <Text style={tw`text-gray-400 text-xs`}>{notification.time}</Text>
           </View>
-          <Text style={tw`text-gray-700`}>{notification.text}</Text>
+          
+          <Text style={tw`text-gray-300 text-sm mb-2`}>{notification.text}</Text>
+          
           {notification.targetTweet && (
-            <Text style={tw`text-gray-500 text-sm mt-1 italic`}>"{notification.targetTweet}"</Text>
+            <View style={tw`bg-white bg-opacity-5 p-3 rounded-lg border border-white border-opacity-5`}>
+              <Text style={tw`text-gray-400 text-sm italic`}>"{notification.targetTweet}"</Text>
+            </View>
           )}
         </View>
       </View>
     </TouchableOpacity>
   );
 
+  const StatsCard = () => (
+    <View style={tw`bg-white bg-opacity-5 p-4 rounded-xl border border-white border-opacity-10 mb-4`}>
+      <View style={tw`flex-row justify-between items-center`}>
+        <View style={tw`items-center`}>
+          <Text style={tw`text-white text-2xl font-bold`}>{notifications.length}</Text>
+          <Text style={tw`text-gray-400 text-sm`}>Total</Text>
+        </View>
+        <View style={tw`h-8 w-px bg-gray-600`} />
+        <View style={tw`items-center`}>
+          <Text style={tw`text-white text-2xl font-bold`}>{unreadCount}</Text>
+          <Text style={tw`text-gray-400 text-sm`}>Não lidas</Text>
+        </View>
+        <View style={tw`h-8 w-px bg-gray-600`} />
+        <View style={tw`items-center`}>
+          <Text style={tw`text-white text-2xl font-bold`}>
+            {notifications.filter(n => n.type === 'like').length}
+          </Text>
+          <Text style={tw`text-gray-400 text-sm`}>Curtidas</Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
-    <View style={tw`flex-1 bg-gray-50`}>
-      <View style={tw`bg-white p-4 border-b border-gray-200`}>
-        <View style={tw`flex-row justify-between items-center mb-3`}>
-          <Text style={tw`text-xl font-bold`}>Notificações</Text>
-          <TouchableOpacity onPress={handleMarkAllAsRead}>
-            <Text style={tw`text-blue-500 text-sm`}>Marcar todas como lidas</Text>
+    <View style={tw`flex-1 bg-[#0F172A]`}>
+      {/* Header */}
+      <View style={tw`bg-white bg-opacity-5 px-4 py-3 border-b border-white border-opacity-10`}>
+        <View style={tw`flex-row justify-between items-center mb-4`}>
+          <View>
+            <Text style={tw`text-white text-xl font-bold`}>Notificações</Text>
+            <Text style={tw`text-gray-400 text-sm`}>
+              {unreadCount > 0 ? `${unreadCount} não lidas` : 'Todas lidas'}
+            </Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={tw`bg-blue-500 bg-opacity-20 px-4 py-2 rounded-full border border-blue-500 border-opacity-30`}
+            onPress={handleMarkAllAsRead}
+          >
+            <Text style={tw`text-blue-400 text-sm font-medium`}>Marcar todas</Text>
           </TouchableOpacity>
         </View>
 
         {/* Tabs */}
-        <View style={tw`flex-row justify-around`}>
-          {(['all', 'mentions', 'likes'] as const).map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={tw`px-4 py-2 ${activeTab === tab ? 'border-b-2 border-blue-500' : ''}`}
-              onPress={() => {
-                setActiveTab(tab);
-                AnalyticsService.logButtonClick(`Tab_${tab}`, 'NotificationsScreen');
-              }}
-            >
-              <Text style={tw`font-medium ${activeTab === tab ? 'text-blue-500' : 'text-gray-500'}`}>
-                {tab === 'all' ? 'Todas' : tab === 'mentions' ? 'Menções' : 'Curtidas'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={tw`flex-row gap-2`}>
+            {([
+              { key: 'all', label: 'Todas', icon: 'notifications' },
+              { key: 'mentions', label: 'Menções', icon: 'at' },
+              { key: 'likes', label: 'Curtidas', icon: 'heart' },
+              { key: 'follows', label: 'Seguidores', icon: 'person-add' }
+            ] as const).map((tab) => (
+              <TouchableOpacity
+                key={tab.key}
+                style={tw`px-4 py-2 rounded-full flex-row items-center ${
+                  activeTab === tab.key 
+                    ? 'bg-blue-500 bg-opacity-30 border border-blue-500 border-opacity-50' 
+                    : 'bg-white bg-opacity-5 border border-white border-opacity-10'
+                }`}
+                onPress={() => {
+                  setActiveTab(tab.key);
+                  AnalyticsService.logButtonClick(`Tab_${tab.key}`, 'NotificationsScreen');
+                }}
+              >
+                <Ionicons 
+                  name={tab.icon} 
+                  size={16} 
+                  color={activeTab === tab.key ? '#60A5FA' : '#9CA3AF'} 
+                  style={tw`mr-2`}
+                />
+                <Text style={tw`text-sm font-medium ${
+                  activeTab === tab.key ? 'text-blue-400' : 'text-gray-400'
+                }`}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       </View>
 
       <FlatList
         data={filteredNotifications}
         keyExtractor={item => item.id}
         renderItem={({ item }) => <NotificationCard notification={item} />}
-        style={tw`p-2`}
+        style={tw`p-4`}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={<StatsCard />}
         ListEmptyComponent={
-          <View style={tw`items-center justify-center p-8`}>
-            <FontAwesome name="bell-slash" size={40} color="gray" />
-            <Text style={tw`text-gray-500 mt-2`}>Nenhuma notificação</Text>
+          <View style={tw`items-center justify-center py-12`}>
+            <Ionicons name="notifications-off" size={64} color="#4B5563" />
+            <Text style={tw`text-gray-400 text-lg font-medium mt-4`}>
+              Nenhuma notificação
+            </Text>
+            <Text style={tw`text-gray-500 text-center mt-2 px-8`}>
+              {activeTab === 'all' 
+                ? 'Você está em dia com todas as notificações!' 
+                : `Nenhuma notificação do tipo ${activeTab}`
+              }
+            </Text>
           </View>
         }
       />
 
-      {/* Botão de exemplo para analytics */}
+      {/* Botão de Configurações */}
       <TouchableOpacity
-        style={tw`mx-4 my-2 bg-blue-500 p-3 rounded`}
+        style={tw`mx-4 my-4 bg-blue-500 bg-opacity-20 p-4 rounded-xl border border-blue-500 border-opacity-30`}
         onPress={() => AnalyticsService.logButtonClick('NotificationSettings', 'NotificationsScreen')}
       >
-        <Text style={tw`text-white text-center`}>Configurações de notificação</Text>
+        <View style={tw`flex-row items-center justify-center`}>
+          <Ionicons name="settings-outline" size={20} color="#60A5FA" style={tw`mr-2`} />
+          <Text style={tw`text-blue-400 font-medium`}>Configurações de notificação</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
